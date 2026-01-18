@@ -1,0 +1,17 @@
+R_DEF: Internal format may change without notice
+local
+id btnDeletePreset
+id btnLoadPreset
+id btnSavePreset
+id btnStart
+id btnStop
+id etKey
+id etKid
+id etNombre
+id etPath
+id etUrl
+id spinnerPresets
+id tvConsole
+layout activity_main
+string app_name
+style AppTheme
