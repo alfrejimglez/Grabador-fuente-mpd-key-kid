@@ -1,1 +1,0 @@
-EXTRAER Y añadir al patch libreria shaka y N_m3u8DL-RE , mp4decrypt y ffmpeg 
