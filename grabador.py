@@ -72,6 +72,7 @@ class RecorderApp(ctk.CTk):
         self.preset_combo = ctk.CTkComboBox(self.preset_frame, variable=self.selected_preset_var, values=[])
         self.preset_combo.grid(row=0, column=1, padx=10, pady=5)
         ctk.CTkButton(self.preset_frame, text="Cargar", command=self.load_selected_preset).grid(row=0, column=2, padx=10)
+        ctk.CTkButton(self.preset_frame, text="Eliminar", command=self.delete_selected_preset, fg_color="red").grid(row=0, column=3, padx=10)
 
         self.textbox = ctk.CTkTextbox(self, height=150)
         self.textbox.pack(pady=10, padx=20, fill="both", expand=True)
@@ -181,6 +182,20 @@ class RecorderApp(ctk.CTk):
             self.save_path.set(preset.get("path", os.getcwd()))
         else:
             messagebox.showerror("Error", "Preset no encontrado.")
+
+    def delete_selected_preset(self):
+        nombre = self.selected_preset_var.get()
+        if not nombre:
+            messagebox.showerror("Error", "Selecciona un preset para eliminar.")
+            return
+        confirm = messagebox.askyesno("Confirmar", f"¿Eliminar el preset '{nombre}'?")
+        if confirm:
+            self.presets = [p for p in self.presets if p.get("nombre") != nombre]
+            with open("presets.json", "w") as f:
+                json.dump(self.presets, f)
+            self.preset_combo.configure(values=[p.get("nombre", "") for p in self.presets])
+            self.selected_preset_var.set("")
+            messagebox.showinfo("Eliminado", f"Preset '{nombre}' eliminado.")
 
     def load_presets(self):
         if os.path.exists("presets.json"):
