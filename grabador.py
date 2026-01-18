@@ -18,7 +18,7 @@ class RecorderApp(ctk.CTk):
         self.title("Grabador Multifuente 2026 - Preview Edition")
         self.geometry("800x650")
         self.process = None
-        self.preview_process = None # Para controlar la ventana de video
+        self.preview_process = None 
 
         self.url_var = ctk.StringVar()
         self.nombre_var = ctk.StringVar()
@@ -32,7 +32,7 @@ class RecorderApp(ctk.CTk):
         self.load_presets()
 
     def create_widgets(self):
-        ctk.CTkLabel(self, text="Grabador con Vista Previa en Tiempo Real", font=("Roboto", 24, "bold")).pack(pady=20)
+        ctk.CTkLabel(self, text="Grabador con Vista Previa", font=("Roboto", 24, "bold")).pack(pady=20)
 
         self.form_frame = ctk.CTkFrame(self)
         self.form_frame.pack(pady=10, padx=20, fill="x")
@@ -45,7 +45,7 @@ class RecorderApp(ctk.CTk):
         ctk.CTkButton(self.form_frame, text="📁 Carpeta de Destino", command=self.select_folder).grid(row=4, column=0, padx=10, pady=10)
         ctk.CTkLabel(self.form_frame, textvariable=self.save_path, font=("Arial", 10), wraplength=400).grid(row=4, column=1, padx=10, pady=10, sticky="w")
 
-        # --- Frame de Botones de Control ---
+        # --- Botones ---
         self.btn_frame = ctk.CTkFrame(self)
         self.btn_frame.pack(pady=10)
 
@@ -61,7 +61,7 @@ class RecorderApp(ctk.CTk):
         self.btn_save_cfg = ctk.CTkButton(self.btn_frame, text="💾 GUARDAR PRESET", command=self.save_presets)
         self.btn_save_cfg.grid(row=0, column=3, padx=5)
 
-        # --- Sección Presets ---
+        # --- Presets ---
         self.preset_frame = ctk.CTkFrame(self)
         self.preset_frame.pack(pady=10, padx=20, fill="x")
         
@@ -83,30 +83,41 @@ class RecorderApp(ctk.CTk):
 
     def open_preview(self):
         url = self.url_var.get().strip()
+        key = self.key_var.get().strip()
+        kid = self.kid_var.get().strip()  # Necesitamos KID y KEY para DRM
+        
         if not url:
             messagebox.showerror("Error", "Carga una URL primero")
             return
+
+        # Usar FFmpeg + FFplay para DRM
+        use_mpv = False
+        player_exe = "ffmpeg"
         
-        # ffplay es ideal para ver streams en tiempo real
-        # -alwaysontop: mantiene la ventana visible
-        # -window_title: pone nombre a la ventana
-        # -noborder: visualización más moderna
-        preview_cmd = [
-            "ffplay", "-i", url,
-            "-window_title", "VISTA PREVIA EN VIVO",
-            "-alwaysontop", "-noborder",
-            "-x", "640", "-y", "360", # Tamaño de ventana inicial
-            "-loglevel", "quiet"
-        ]
+        if not key:
+            messagebox.showerror("Error", "Se requiere KEY para desencriptar.")
+            return
 
-        def launch_ffplay():
+        preview_cmd = f"{player_exe} -cenc_decryption_key {key} -i \"{url}\" -map 0:v:0 -map 0:a:0 -c copy -f mpegts - | ffplay -i - -window_title \"VISTA PREVIA\" -alwaysontop -x 640 -y 360"
+
+        # Función anidada CORRECTAMENTE indentada
+        def launch_player():
             try:
-                self.preview_process = subprocess.Popen(preview_cmd)
-                self.textbox.insert("end", ">>> Ventana de visualización abierta.\n")
+                self.textbox.insert("end", f">>> Iniciando Previa con: FFmpeg + FFplay...\n")
+                
+                self.textbox.insert("end", f"Comando: {preview_cmd}\n")
+                
+                self.preview_process = subprocess.Popen(preview_cmd, shell=True, stderr=subprocess.PIPE, text=True, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+                
+                # Leer errores en tiempo real
+                for line in self.preview_process.stderr:
+                    self.textbox.insert("end", f"[FFPLAY] {line}")
+                    self.textbox.see("end")
+                
             except FileNotFoundError:
-                messagebox.showerror("Error", "No se encontró 'ffplay'. Asegúrate de tener FFmpeg instalado y en el PATH.")
+                messagebox.showerror("Error", f"No se encontró ffmpeg o ffplay. Instala FFmpeg.")
 
-        threading.Thread(target=launch_ffplay, daemon=True).start()
+        threading.Thread(target=launch_player, daemon=True).start()
 
     def start_recording(self):
         url = self.url_var.get().strip()
@@ -155,7 +166,6 @@ class RecorderApp(ctk.CTk):
         self.textbox.insert("end", "\n[GRABACIÓN FINALIZADA]\n")
 
     def stop_recording(self):
-        # Detener grabación
         if self.process:
             try:
                 parent = psutil.Process(self.process.pid)
@@ -163,7 +173,6 @@ class RecorderApp(ctk.CTk):
                 parent.kill()
             except: pass
         
-        # Detener previa si sigue abierta
         if self.preview_process:
             try: self.preview_process.terminate()
             except: pass
