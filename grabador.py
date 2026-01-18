@@ -15,7 +15,7 @@ class RecorderApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("Grabador Fuente MPD - KEY:KID")
+        self.title("Grabador Fuente MPD - KEY:KID | m3u8-ts")
         self.geometry("700 x 550")
         self.process = None
 
@@ -32,13 +32,13 @@ class RecorderApp(ctk.CTk):
         self.load_presets()
 
     def create_widgets(self):
-        ctk.CTkLabel(self, text="Grabador Fuente MPD - KEY:KID", font=("Roboto", 24, "bold")).pack(pady=20)
+        ctk.CTkLabel(self, text="Grabador Fuente MPD - KEY:KID | m3u8-ts", font=("Roboto", 24, "bold")).pack(pady=20)
 
         #form
         self.form_frame = ctk.CTkFrame(self)
         self.form_frame.pack(pady=10, padx=20, fill="x")
 
-        ctk.CTkLabel(self.form_frame, text="URL del MPD:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
+        ctk.CTkLabel(self.form_frame, text="URL:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
         ctk.CTkEntry(self.form_frame, textvariable=self.url_var, width=400).grid(row=0, column=1, padx=10, pady=5)
 
         ctk.CTkLabel(self.form_frame, text="Nombre:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
@@ -83,30 +83,31 @@ class RecorderApp(ctk.CTk):
             self.save_path.set(path)
 
     def start_recording(self):
-        if not self.url_var.get() or not self.kid_var.get() or not self.key_var.get():
-            messagebox.showerror("Error", "Faltan datos (URL, KID o KEY)")
+        if not self.url_var.get():
+            messagebox.showerror("Error", "Falta la URL")
             return
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         name = f"Grabacion_{timestamp}"
         self.current_name = name
-        key_full = f"{self.kid_var.get()}:{self.key_var.get()}"
         
         command = [
             "N_m3u8DL-RE.exe",
             self.url_var.get(),
-            "--key", key_full,
             "--save-name", name,
             "--save-dir", self.save_path.get(),
             "--auto-select",
             "--live-pipe-mux"
         ]
-
+        
+        if self.kid_var.get() and self.key_var.get():
+            key_full = f"{self.kid_var.get()}:{self.key_var.get()}"
+            command.extend(["--key", key_full])
+# ya no es obligatorio el key y kid para demas ficheros q no son mpd
         self.btn_start.configure(state="disabled")
         self.btn_stop.configure(state="normal")
         self.textbox.insert("end", f"Iniciando grabación: {name}\n")
 
-        # de momento hilo separado para evitar el freezeoo
         self.thread = threading.Thread(target=self.run_process, args=(command,), daemon=True)
         self.thread.start()
 

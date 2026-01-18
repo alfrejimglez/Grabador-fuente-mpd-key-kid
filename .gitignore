@@ -3,7 +3,8 @@
 *.mp4
 *.ts
 *.mpd
-# Archivos json de metadatos de descarga    
+*.m3u8
+# Archivos de metadatos de N_m3u8DL-RE
 *.meta_selected.json
 *.meta.json
 
