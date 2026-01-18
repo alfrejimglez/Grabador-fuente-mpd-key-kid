@@ -5,8 +5,9 @@
 *.mpd
 *.m3u8
 # Archivos de metadatos de N_m3u8DL-RE
-*.meta_selected.json
-*.meta.json
+# Archivos de metadatos en cualquier nivel de subcarpetas
+**/*.meta_selected.json
+**/*.meta.json
 
 # Archivos de configuracion predefinidos del usuario
 *.presets.json
