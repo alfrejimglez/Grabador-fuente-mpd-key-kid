@@ -4,6 +4,8 @@
 *.ts
 *.mpd
 *.m3u8
+*.vtt
+*.srt
 # Archivos de metadatos de N_m3u8DL-RE
 # Archivos de metadatos en cualquier nivel de subcarpetas
 **/*.meta_selected.json
