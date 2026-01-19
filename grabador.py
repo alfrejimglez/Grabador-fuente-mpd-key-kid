@@ -7,6 +7,7 @@ import shutil
 from datetime import datetime
 from tkinter import filedialog, messagebox
 import psutil
+import glob
 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
@@ -15,7 +16,7 @@ class RecorderApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("Grabador Multifuente 2026 - Preview Edition")
+        self.title("Grabador M3U8/MPD con Vista Previa")
         self.geometry("800x650")
         self.process = None
         self.preview_process = None 
@@ -32,7 +33,7 @@ class RecorderApp(ctk.CTk):
         self.load_presets()
 
     def create_widgets(self):
-        ctk.CTkLabel(self, text="Grabador con Vista Previa", font=("Roboto", 24, "bold")).pack(pady=20)
+        ctk.CTkLabel(self, text="Grabador MPD Y M3U8", font=("Roboto", 24, "bold")).pack(pady=20)
 
         self.form_frame = ctk.CTkFrame(self)
         self.form_frame.pack(pady=10, padx=20, fill="x")
@@ -69,6 +70,7 @@ class RecorderApp(ctk.CTk):
         self.preset_combo.grid(row=0, column=0, padx=10, pady=10)
         ctk.CTkButton(self.preset_frame, text="Cargar", width=80, command=self.load_selected_preset).grid(row=0, column=1, padx=5)
         ctk.CTkButton(self.preset_frame, text="Eliminar", width=80, fg_color="#bd2130", command=self.delete_selected_preset).grid(row=0, column=2, padx=5)
+        ctk.CTkButton(self.preset_frame, text="Limpiar Consola", width=100, command=self.clear_console).grid(row=0, column=3, padx=5)
 
         self.textbox = ctk.CTkTextbox(self, height=200, font=("Consolas", 12))
         self.textbox.pack(pady=10, padx=20, fill="both", expand=True)
@@ -90,26 +92,33 @@ class RecorderApp(ctk.CTk):
             messagebox.showerror("Error", "Carga una URL primero")
             return
 
-        # Usar FFmpeg + FFplay para DRM
+        # (sin DRM) el resto m3u8 o ts
+        is_m3u8_or_ts = url.endswith('.m3u8') or url.endswith('.ts')
+        
+        if not key and not is_m3u8_or_ts:
+            messagebox.showerror("Error", "Se requiere KEY para desencriptar, o la URL debe ser .m3u8/.ts sin DRM.")
+            return
+
+        #  DRM mpd
         use_mpv = False
         player_exe = "ffmpeg"
         
-        if not key:
-            messagebox.showerror("Error", "Se requiere KEY para desencriptar.")
-            return
+        if key:
+            preview_cmd = f"{player_exe} -cenc_decryption_key {key} -i \"{url}\" -map 0:v:0 -map 0:a:0 -c copy -f mpegts - | ffplay -i - -window_title \"VISTA PREVIA\" -alwaysontop -x 640 -y 360"
+        else:
+            preview_cmd = f"ffplay \"{url}\" -window_title \"VISTA PREVIA\" -alwaysontop -x 640 -y 360"
 
-        preview_cmd = f"{player_exe} -cenc_decryption_key {key} -i \"{url}\" -map 0:v:0 -map 0:a:0 -c copy -f mpegts - | ffplay -i - -window_title \"VISTA PREVIA\" -alwaysontop -x 640 -y 360"
-
-        # Función anidada CORRECTAMENTE indentada
         def launch_player():
             try:
-                self.textbox.insert("end", f">>> Iniciando Previa con: FFmpeg + FFplay...\n")
+                if key:
+                    self.textbox.insert("end", f">>> Iniciando Previa con DRM: FFmpeg + FFplay...\n")
+                else:
+                    self.textbox.insert("end", f">>> Iniciando Previa sin DRM: FFplay...\n")
                 
                 self.textbox.insert("end", f"Comando: {preview_cmd}\n")
                 
                 self.preview_process = subprocess.Popen(preview_cmd, shell=True, stderr=subprocess.PIPE, text=True, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
                 
-                # Leer errores en tiempo real
                 for line in self.preview_process.stderr:
                     self.textbox.insert("end", f"[FFPLAY] {line}")
                     self.textbox.see("end")
@@ -136,6 +145,8 @@ class RecorderApp(ctk.CTk):
             "--save-name", f"{final_name}",
             "--save-dir", f"{self.save_path.get()}",
             "--auto-select",
+            "--drop-audio", ".*[Dd]escripcion.*",
+            "--drop-subtitle", ".*",
             "--live-pipe-mux"
         ]
         
@@ -164,6 +175,31 @@ class RecorderApp(ctk.CTk):
         self.btn_stop.configure(state="disabled")
         self.process = None
         self.textbox.insert("end", "\n[GRABACIÓN FINALIZADA]\n")
+        
+        # Delete SRT files
+        srt_files = glob.glob(os.path.join(self.save_path.get(), "*.srt"))
+        for srt in srt_files:
+            try:
+                os.remove(srt)
+                self.textbox.insert("end", f"Eliminado: {os.path.basename(srt)}\n")
+            except:
+                pass
+
+        # convierto a ts-mp4 y luego borro  ts
+        ts_file = os.path.join(self.save_path.get(), f"{self.current_name}.ts")
+        mp4_file = os.path.join(self.save_path.get(), f"{self.current_name}.mp4")
+        if os.path.exists(ts_file):
+            convert_cmd = ["ffmpeg", "-i", ts_file, "-c", "copy", mp4_file]
+            try:
+                subprocess.run(convert_cmd, check=True, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+                self.textbox.insert("end", f"Convertido a MP4: {os.path.basename(mp4_file)}\n")
+                try:
+                    os.remove(ts_file)
+                    self.textbox.insert("end", f"Eliminado TS: {os.path.basename(ts_file)}\n")
+                except:
+                    self.textbox.insert("end", "Error al eliminar TS\n")
+            except subprocess.CalledProcessError:
+                self.textbox.insert("end", "Error al convertir a MP4\n")
 
     def stop_recording(self):
         if self.process:
@@ -216,6 +252,9 @@ class RecorderApp(ctk.CTk):
         self.presets = [p for p in self.presets if p['nombre'] != nombre]
         with open("presets.json", "w") as f: json.dump(self.presets, f, indent=4)
         self.update_combo(); self.selected_preset_var.set("")
+
+    def clear_console(self):
+        self.textbox.delete("1.0", "end")
 
     def load_presets(self):
         if os.path.exists("presets.json"):
