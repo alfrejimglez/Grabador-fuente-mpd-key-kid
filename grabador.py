@@ -145,8 +145,6 @@ class RecorderApp(ctk.CTk):
             "--save-name", f"{final_name}",
             "--save-dir", f"{self.save_path.get()}",
             "--auto-select",
-            "--drop-audio", ".*[Dd]escripcion.*",
-            "--drop-subtitle", ".*",
             "--live-pipe-mux"
         ]
         
